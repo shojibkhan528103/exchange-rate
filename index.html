@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Exchange Money</title>
+
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+        crossorigin="anonymous" />
+
+    <!-- Select2 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css" />
+    <style>
+        .select2-container .select2-selection--single {
+            height: 38px !important;
+        }
+
+        .select2-container--default .select2-selection--single .select2-selection__rendered {
+            line-height: 38px !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-4">
+        <div class="row justify-content-center">
+            <div class="col-md-8 p-3 border rounded shadow">
+                <h4 class="mb-3 text-center text-primary border-bottom pb-2">Exchange Currency</h4>
+                <form id="exchange_currency_form_submit">
+                    <div class="row">
+                        <!-- From Currency and Amount -->
+                        <div class="col-lg-5 col-sm-12 col-md-12">
+                            <div class="mb-3">
+                                <label for="fromCurrency" class="form-label">From Currency</label>
+                                <select name="fromCurrency" id="fromCurrency" class="form-select select2_from">
+                                    <option value="">Loading currencies...</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="fromAmount" class="form-label">Enter Amount</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-currency-exchange"></i></span>
+                                    <input type="number" step="0.01" name="fromAmount" id="fromAmount"
+                                        class="form-control" placeholder="Enter amount" value="1" min="0" />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-2 col-sm-12 col-md-12 d-flex align-items-center justify-content-center">
+                            <h5>To</h5>
+                        </div>
+
+                        <!-- To Currency and Converted Amount -->
+                        <div class="col-lg-5 col-sm-12 col-md-12">
+                            <div class="mb-3">
+                                <label for="toCurrency" class="form-label">To Currency</label>
+                                <select name="toCurrency" id="toCurrency" class="form-select select2_to">
+                                    <option value="">Loading currencies...</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="toAmount" class="form-label">Converted Amount</label>
+                                <div class="input-group">
+                                    <span class="input-group-text"><i class="bi bi-currency-exchange"></i></span>
+                                    <input type="text" readonly name="toAmount" id="toAmount" class="form-control"
+                                        placeholder="Converted amount" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- jQuery (required for Select2) -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <!-- Bootstrap Bundle JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"
+        crossorigin="anonymous"></script>
+
+    <!-- Select2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        $(document).ready(function () {
+            const apiKey = "2f4c7826202d23ca272aca47";
+            const baseUrl = `https://v6.exchangerate-api.com/v6/${apiKey}/latest/BDT`; // Default base BDT
+
+            // Initialize Select2 for both selects
+            $(".select2_from, .select2_to").select2({
+                placeholder: "Search and select currency",
+                allowClear: true,
+                width: "100%",
+            });
+
+            // Function to populate select options
+            function populateCurrencies(rates) {
+                const $from = $("#fromCurrency");
+                const $to = $("#toCurrency");
+                $from.empty();
+                $to.empty();
+
+                // Append options
+                for (const code in rates) {
+                    $from.append(`<option value="${code}">${code}</option>`);
+                    $to.append(`<option value="${code}">${code}</option>`);
+                }
+
+                // Set default selected to BDT if available
+                if (rates["BDT"]) {
+                    $from.val("BDT").trigger("change");
+                    $to.val("BDT").trigger("change");
+                } else {
+                    $from.val("").trigger("change");
+                    $to.val("").trigger("change");
+                }
+            }
+
+            // Load currencies on page load
+            $.ajax({
+                url: baseUrl,
+                method: "GET",
+                success: function (response) {
+                    if (response && response.conversion_rates) {
+                        populateCurrencies(response.conversion_rates);
+                        calculateConversion();
+                    } else {
+                        alert("Failed to load currency data");
+                    }
+                },
+                error: function () {
+                    alert("Error loading currency data");
+                },
+            });
+
+            // Calculate and display conversion
+            function calculateConversion() {
+                const fromCurrency = $("#fromCurrency").val();
+                const toCurrency = $("#toCurrency").val();
+                const amount = parseFloat($("#fromAmount").val());
+
+                if (!fromCurrency || !toCurrency || isNaN(amount)) {
+                    $("#toAmount").val("");
+                    return;
+                }
+
+                // Fetch latest rates based on fromCurrency as base
+                $.ajax({
+                    url: `https://v6.exchangerate-api.com/v6/${apiKey}/latest/${fromCurrency}`,
+                    method: "GET",
+                    success: function (response) {
+                        if (
+                            response &&
+                            response.conversion_rates &&
+                            response.conversion_rates[toCurrency]
+                        ) {
+                            const rate = response.conversion_rates[toCurrency];
+                            const convertedNumber = amount * rate;
+
+                            // Format number with comma as decimal separator and dot as thousands separator
+                            const formatted = convertedNumber.toLocaleString("de-DE", {
+                                minimumFractionDigits: 4,
+                                maximumFractionDigits: 4,
+                            });
+
+                            $("#toAmount").val(formatted);
+                        } else {
+                            $("#toAmount").val("Conversion error");
+                        }
+                    },
+                    error: function () {
+                        $("#toAmount").val("Conversion error");
+                    },
+                });
+            }
+
+            // Event listeners for recalculation
+            $("#fromAmount").on("input", calculateConversion);
+            $("#fromCurrency, #toCurrency").on("change", calculateConversion);
+        });
+    </script>
+</body>
+
+</html>
